@@ -35,7 +35,7 @@ async function bootstrap() {
         app.get("/api/v1/reports", authMiddleware, getReportsHandler);
         app.get("/api/v1/reports/mine", authMiddleware, getMyReportsHandler);
 
-        const PORT = process.env.PORT || 4003;
+        const PORT = process.env.PORT || 3005;
         app.listen(PORT, () => {
             console.log(`[INFO] user-report-service listening on port ${PORT}`);
         });

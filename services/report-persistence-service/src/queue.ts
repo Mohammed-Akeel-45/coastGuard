@@ -6,7 +6,7 @@ export async function startQueueConsumer() {
     const conn = await amqplib.connect(process.env.RABBITMQ_URL!);
     const channel = await conn.createChannel();
 
-    const queue = "processed_reports";
+    const queue = "processed_cluster";
     await channel.assertQueue(queue, { durable: true });
 
     console.log("Listening on queue:", queue);

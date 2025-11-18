@@ -11,7 +11,7 @@ setupSwagger(app);
 // Routes
 app.use("/api/v1/social-posts", postsRoutes);
 
-const PORT = 4010;
+const PORT = process.env.PORT || 3006;
 app.listen(PORT, () => {
     console.log(`[INFO] social-posts-service running at port ${PORT}`);
     console.log(`[INFO] Swagger UI: http://localhost:${PORT}/api-docs`);

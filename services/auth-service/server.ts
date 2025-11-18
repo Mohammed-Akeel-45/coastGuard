@@ -5,7 +5,7 @@ import { HTTP_RESPONSE_CODE } from "./src/constants/api.response.codes.js";
 import errorHandler from "./src/middlewares/error.middleware.js";
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
 app.use(cookieParser());

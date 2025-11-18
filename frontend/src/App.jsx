@@ -10,55 +10,56 @@ import TriageView from './components/triage/TriageView';
 import AnalyticsView from './components/analytics/AnalyticsView';
 
 const AutoRefresh = () => {
-  const { fetchHotspots, fetchReports } = useApp();
+    const { fetchHotspots, fetchReports } = useApp();
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchHotspots();
-      fetchReports();
-    }, 60000);
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchHotspots();
+            fetchReports();
+        }, 60000);
 
-    return () => clearInterval(interval);
-  }, [fetchHotspots, fetchReports]);
+        return () => clearInterval(interval);
+    }, [fetchHotspots, fetchReports]);
 
-  return null;
+    return null;
 };
 
+const token = localStorage.getItem("token");
 const App = () => {
-  const { token, currentView } = useApp();
+    const { currentView } = useApp();
 
-  if (!token) {
-    return <LoginPage />;
-  }
-
-  const renderView = () => {
-    switch (currentView) {
-      case 'map':
-        return <MapView />;
-      case 'feed':
-        return <FeedView />;
-      case 'post':
-        return <PostReportView />;
-      case 'myReports':
-        return <MyReportsView />;
-      case 'triage':
-        return <TriageView />;
-      case 'analytics':
-        return <AnalyticsView />;
-      default:
-        return <MapView />;
+    if (!token) {
+        return <LoginPage />;
     }
-  };
 
-  return (
-    <div className="flex h-screen bg-gray-900">
-      <Sidebar />
-      <div className="flex-1 overflow-hidden">
-        <AutoRefresh />
-        {renderView()}
-      </div>
-    </div>
-  );
+    const renderView = () => {
+        switch (currentView) {
+            case 'map':
+                return <MapView />;
+            case 'feed':
+                return <FeedView />;
+            case 'post':
+                return <PostReportView />;
+            case 'myReports':
+                return <MyReportsView />;
+            case 'triage':
+                return <TriageView />;
+            case 'analytics':
+                return <AnalyticsView />;
+            default:
+                return <MapView />;
+        }
+    };
+
+    return (
+        <div className="flex h-screen bg-gray-900">
+            <Sidebar />
+            <div className="flex-1 overflow-hidden">
+                <AutoRefresh />
+                {renderView()}
+            </div>
+        </div>
+    );
 };
 
 export default App;

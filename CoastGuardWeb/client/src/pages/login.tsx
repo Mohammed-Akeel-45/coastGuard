@@ -32,17 +32,19 @@ export default function LoginPage() {
     async function onLogin(data: LoginInput) {
         setIsLoading(true);
         try {
-            const response = await apiRequest<{ token: string; user: { userId: number; userName: string; email: string; role: string } }>(
+            const response = await apiRequest<{ data: { token: string, userName: string; role: string } }>(
                 "POST",
                 "/auth/login",
                 data
             );
-            setAuth(response.token, {
-                userName: response.user.userName,
-                email: response.user.email,
-                phone: undefined,
-                role: response.user.role as any,
+            const token = response.data.token;
+            setAuth({
+                token: response.data.token,
+                userName: response.data.userName,
+                role: response.data.role as any,
             });
+            localStorage.setItem("token", token);
+
             toast({ title: "Welcome back!", description: "Logged in successfully" });
             setLocation("/");
         } catch (error: any) {
@@ -59,17 +61,15 @@ export default function LoginPage() {
     async function onRegister(data: RegisterInput) {
         setIsLoading(true);
         try {
-            const response = await apiRequest<{ token: string; user: { userId: number; userName: string; email: string; role: string } }>(
+            const response = await apiRequest<{ user: { token: string; userName: string; role: string } }>(
                 "POST",
                 "/auth/register",
                 data
             );
-            console.log(response);
-            setAuth(response.token, {
-                userName: response.user.userName,
-                email: response.user.email,
-                phone: data.phone,
-                role: response.user.role as any,
+            setAuth({
+                token: response.data.token,
+                userName: response.data.userName,
+                role: response.data.role as any,
             });
             toast({ title: "Account created!", description: "Registration successful" });
             setLocation("/");

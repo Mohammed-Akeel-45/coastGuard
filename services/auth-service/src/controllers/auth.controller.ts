@@ -56,9 +56,9 @@ export async function register(req: any, res: any) {
 }
 
 export async function login(req: any, res: any) {
-    const { userEmail, password } = req.body;
+    const { email, password } = req.body;
 
-    const user = await authServices.findUserByEmail(userEmail);
+    const user = await authServices.findUserByEmail(email);
     if (!user) {
         // returning both wrong username or password to avoid leaking email to unauthorized users
         throw new ApiError(HTTP_RESPONSE_CODE.UNAUTHORIZED, "Wrong Email or password");

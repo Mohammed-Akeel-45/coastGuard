@@ -1,6 +1,7 @@
-import { API_BASE_URL } from '../utils/constants';
+import { API_BASE_URL } from "../utils/constants";
+const token = localStorage.getItem("token");
 
-class ApiService {
+export class ApiService {
   constructor() {
     this.baseUrl = API_BASE_URL;
   }
@@ -11,25 +12,31 @@ class ApiService {
       const response = await fetch(url, options);
       return response;
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error("API request failed:", error);
       throw error;
     }
   }
 
   // Auth endpoints
   async login(email, password) {
-    const response = await this.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await this.request("/api/v1/auth/login", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ userEmail: email, password }),
     });
     return response.json();
   }
 
   async register(userName, email, password, phone) {
-    const response = await this.request('/api/auth/regitser', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await this.request("/api/v1/auth/register", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ userName, email, password, phone }),
     });
     return response.json();
@@ -37,7 +44,7 @@ class ApiService {
 
   // Profile endpoints
   async getUserProfile(token) {
-    const response = await this.request('/api/v1/profile/me', {
+    const response = await this.request("/api/v1/profile/me", {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response.json();
@@ -50,7 +57,7 @@ class ApiService {
   }
 
   async getMyReports(token) {
-    const response = await this.request('/api/v1/reports/mine', {
+    const response = await this.request("/api/v1/reports/mine", {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response.json();
@@ -58,17 +65,18 @@ class ApiService {
 
   async submitReport(token, reportData) {
     const formData = new FormData();
-    if (reportData.text) formData.append('text', reportData.text);
-    if (reportData.type_id) formData.append('type_id', reportData.type_id);
-    formData.append('latitude', reportData.latitude);
-    formData.append('longitude', reportData.longitude);
-    if (reportData.location_name) formData.append('location_name', reportData.location_name);
+    if (reportData.text) formData.append("text", reportData.text);
+    if (reportData.type_id) formData.append("type_id", reportData.type_id);
+    formData.append("latitude", reportData.latitude);
+    formData.append("longitude", reportData.longitude);
+    if (reportData.location_name)
+      formData.append("location_name", reportData.location_name);
     if (reportData.media) {
-      reportData.media.forEach(file => formData.append('media', file));
+      reportData.media.forEach((file) => formData.append("media", file));
     }
 
-    const response = await this.request('/api/v1/reports', {
-      method: 'POST',
+    const response = await this.request("/api/v1/reports", {
+      method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
@@ -76,24 +84,30 @@ class ApiService {
   }
 
   async verifyReport(token, reportId) {
-    const response = await this.request(`/api/v1/verify-user-report/${reportId}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await this.request(
+      `/api/v1/verify-user-report/${reportId}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     return response;
   }
 
   async debunkReport(token, reportId) {
-    const response = await this.request(`/api/v1/debunk-user-report/${reportId}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await this.request(
+      `/api/v1/debunk-user-report/${reportId}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     return response;
   }
 
   // Hotspots endpoints
   async getHotspots() {
-    const response = await this.request('/api/hotspots');
+    const response = await this.request("/api/v1/hotspots");
     return response.json();
   }
 
@@ -105,5 +119,3 @@ class ApiService {
     return response.json();
   }
 }
-
-export default new ApiService();

@@ -3,7 +3,6 @@ import { query } from "../db.js";
 
 export async function getNearbyPosts(req: Request, res: Response) {
     try {
-        console.log("YAYAYYA");
         const lat = Number(req.query.lat);
         const lon = Number(req.query.lon);
         const radius_km = Number(req.query.radius) || 5;
