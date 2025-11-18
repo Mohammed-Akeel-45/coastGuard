@@ -1,0 +1,70 @@
+[
+  {
+    "user_id": "imdalrt",
+    "hazard_type": "Coastal Flood/Heavy Rain/High Swell",
+    "text": "IMD Yellow Alert issued for coastal Kerala due to heavy rain and strong sea swell. High waves and isolated heavy showers expected as a Bay of Bengal system draws moisture. Fishermen advised not to venture into the sea. Minor coastal erosion reported near Alappuzha.",
+    "location": {
+      "lat": 9.9312,
+      "lon": 76.2673,
+      "name": "Kochi, Kerala Coast"
+    },
+    "sentiment": "negative",
+    "relevance_score": "68.50",
+    "report_time": "2025-09-26T14:30:00Z",
+    "media_url": "https://img.mathrubhumi.com/view/acePublic/alias/contentid/1n8umivkkwj6vwuuy7g/1/kerala-rains-jpg.webp?f=3%3A2&q=0.75&w=900",
+    "media_type": "Image",
+    "platform": "api",
+    "user_name": "IMD Weather Alert"
+  },
+  {
+    "user_id": "ncsreport",
+    "hazard_type": "Volcanic Eruption/Seismic Activity",
+    "text": "Small, continuous eruption witnessed at Barren Island volcano, attributed by NCS to a M4.2 earthquake 2 days prior. No immediate danger to human settlements but Coast Guard is monitoring for any resulting plumes or marine disruption.",
+    "location": {
+      "lat": 12.2783,
+      "lon": 93.8562,
+      "name": "Barren Island, Andaman Sea"
+    },
+    "sentiment": "neutral",
+    "relevance_score": "45.20",
+    "report_time": "2025-09-20T10:00:00Z",
+    "media_url": "https://www.youtube.com/watch?v=ucQQmFwADqw&t=9s",
+    "media_type": "Video",
+    "platform": "api",
+    "user_name": "NCS Geo Hazard"
+  },
+  {
+    "user_id": "icg_pib",
+    "hazard_type": "Oil Spill/Marine Pollution",
+    "text": "ICG successfully completed NATPOLREX-X off Chennai Coast. Exercise simulated a Tier-1 oil spill incident, involving cleanup drills at Marina Beach. Focus on containing pollution from potential ship collisions in the Bay of Bengal route.",
+    "location": {
+      "lat": 13.0475,
+      "lon": 80.2858,
+      "name": "Chennai Coast, Tamil Nadu"
+    },
+    "sentiment": "positive",
+    "relevance_score": "30.90",
+    "report_time": "2025-10-06T17:52:00Z",
+    "media_url": "https://img-s-msn-com.akamaized.net/tenant/amp/entityid/AA1NXnH9.img?w=749&h=421&m=6",
+    "media_type": "Image",
+    "platform": "pib-release",
+    "user_name": "Indian Coast Guard PI"
+  },
+  {
+    "user_id": "ncsreport",
+    "hazard_type": "Earthquake/Seismic Activity",
+    "text": "Earthquake of Magnitude 5.4 reported in the Andaman Sea region, 90 km depth. Felt across the Andaman Islands. NCS confirms no Tsunami threat expected due to the deep focus of the seismic event. Stay alert for aftershocks.",
+    "location": {
+      "lat": 12.49,
+      "lon": 93.83,
+      "name": "Andaman Sea"
+    },
+    "sentiment": "neutral",
+    "relevance_score": "55.10",
+    "report_time": "2025-11-09T12:06:28Z",
+    "media_url": "https://th.bing.com/th/id/R.3f17df54cb70e80cdd1254f355a33bcf?rik=r2kf02WrXe57ug&riu=http%3a%2f%2fwww.india.com%2fwp-content%2fuploads%2f2018%2f02%2fandaman-quake.jpg&ehk=WsWFuz8f21I9JJfgb4HZ28oCJZt08xfRXCacQlPlWnI%3d&risl=&pid=ImgRaw&r=0",
+    "media_type": "Image",
+    "platform": "api",
+    "user_name": "National Centre for Seismology"
+  }
+]
