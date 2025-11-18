@@ -4,7 +4,7 @@ import { publishUserReport } from "../rabbitmq.js";
 import { apiResponse } from "../utils/api.response.js";
 import { logger } from "../utils/logger.js";
 import { ApiError } from "../utils/api.error.js";
-import { HTTP_RESPONSE_CODE } from "../constants/api.response.codes.ts";
+import { HTTP_RESPONSE_CODE } from "../constants/api.response.codes.js";
 
 // POST /reports
 export async function createReportHandler(req: any, res: Response) {

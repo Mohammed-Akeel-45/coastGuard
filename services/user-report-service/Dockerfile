@@ -9,7 +9,7 @@ RUN npm install
 COPY ./src ./src
 
 # Build TypeScript → JavaScript
-RUN ["npm", "run", "build"]
+RUN npm run build
 
 # Step 2: Production stage
 FROM node:18-alpine

@@ -20,7 +20,7 @@ RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
-EXPOSE 4010
+EXPOSE 3005 
 
 CMD ["npm", "start"]
 

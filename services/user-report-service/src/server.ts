@@ -16,7 +16,7 @@ process.on("unhandledRejection", (reason) => {
 async function bootstrap() {
     try {
         // dynamic import of controllers
-        const controller = await import("./controllers/report.controller.ts");
+        const controller = await import("./controllers/report.controller.js");
         const createReportHandler = controller.createReportHandler;
         const getReportsHandler = controller.getReportsHandler;
         const getMyReportsHandler = controller.getMyReportsHandler;

@@ -35,6 +35,7 @@ export async function register(req: any, res: any) {
     if (userEmailExists) {
         throw new ApiError(HTTP_RESPONSE_CODE.CONFLICT, "user already registered, login in instead");
     }
+    console.log(userEmailExists)
     const userNameTaken = await authServices.findUserByUserName(userName);
     if (userNameTaken) {
         throw new ApiError(HTTP_RESPONSE_CODE.CONFLICT, "userName taken, try something else.");

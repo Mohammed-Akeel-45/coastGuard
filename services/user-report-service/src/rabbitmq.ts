@@ -1,7 +1,7 @@
 import amqplib from "amqplib";
 import { logger } from "./utils/logger.js";
 
-const RABBIT_URL = process.env.RABBIT_URL || "amqp://localhost:5672";
+const RABBIT_URL = process.env.RABBIT_URL || "amqp://guest:guest@rabbitmq:5672";
 const QUEUE_NAME = "reports";
 
 let channel: amqplib.Channel | null = null;
