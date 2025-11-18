@@ -1,0 +1,11 @@
+pika
+google-cloud-vision
+google-cloud-translate
+ftfy
+emoji
+pillow
+imagehash
+transformers
+torch
+numpy
+opencv-python

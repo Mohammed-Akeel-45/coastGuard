@@ -1,0 +1,62 @@
+[
+  {
+    "id": "cgr0125",
+    "skip": false,
+    "type": "weather-alert",
+    "text": "IMD Yellow Alert issued for coastal Kerala due to heavy rain and strong sea swell. High waves and isolated heavy showers expected as a Bay of Bengal system draws moisture. Fishermen advised not to venture into the sea. Minor coastal erosion reported near Alappuzha.",
+    "created_at": "2025-09-26T14:30:00Z",
+    "location": {"lat": 9.9312, "lon": 76.2673, "name": "Kochi, Kerala Coast"},
+    "media": ["https://img.mathrubhumi.com/view/acePublic/alias/contentid/1n8umivkkwj6vwuuy7g/1/kerala-rains-jpg.webp?f=3%3A2&q=0.75&w=900"],
+    "user": {"id": "1", "name": "IMD Weather Alert"},
+    "platform": "coast_guard",
+    "extra": {"alert_level": "Yellow", "hazard_type": "Coastal Flood/Heavy Rain"}
+  },
+  {
+    "id": "cgr0234",
+    "skip": false,
+    "type": "geo-event",
+    "text": "Small, continuous eruption witnessed at Barren Island volcano, attributed by NCS to a M4.2 earthquake 2 days prior. No immediate danger to human settlements but Coast Guard is monitoring for any resulting plumes or marine disruption.",
+    "created_at": "2025-09-20T10:00:00Z",
+    "location": {"lat": 12.2783, "lon": 93.8562, "name": "Barren Island, Andaman Sea"},
+    "media": ["https://www.youtube.com/watch?v=ucQQmFwADqw&t=9s"],
+    "user": {"id": "ncsreport", "name": "NCS Geo Hazard"},
+    "platform": "coast_guard",
+    "extra": {"magnitude": 4.2, "hazard_type": "Volcanic Eruption/Seismic Activity"}
+  },
+  {
+    "id": "telr0356",
+    "skip": false,
+    "type": "user-report",
+    "text": "ICG successfully completed NATPOLREX-X off Chennai Coast. Exercise simulated a Tier-1 oil spill incident, involving cleanup drills at Marina Beach. Focus on containing pollution from potential ship collisions in the Bay of Bengal route.",
+    "created_at": "2025-10-06T17:52:00Z",
+    "location": {"lat": 13.0475, "lon": 80.2858, "name": "Chennai Coast, Tamil Nadu"},
+    "media": ["https://img-s-msn-com.akamaized.net/tenant/amp/entityid/AA1NXnH9.img?w=749&h=421&m=6"],
+    "user": {"id": "icg_pib", "name": "Indian Coast Guard PI"},
+    "platform": "telegram",
+    "extra": {"hazard_type": "Oil Spill/Marine Pollution", "event_type": "Drill/Exercise"}
+  },
+  {
+    "id": "redr0384",
+    "skip": false,
+    "type": "user-post",
+    "text": "Widespread waterlogging across Chennai—schools closed. My street in Perambur is knee-deep. Non-stop rain since last night due to the low-pressure area over the SW Bay of Bengal. Please avoid all unnecessary travel! #ChennaiRains #LowPressure #TamilNaduFlood",
+    "created_at": "2025-11-17T05:30:00Z",
+    "location": {"lat": 13.1166, "lon": 80.2458, "name": "Perambur, Chennai"},
+    "media": ["https://img-s-msn-com.akamaized.net/tenant/amp/entityid/AA1QA1Ji.img?w=768&h=432&m=6"],
+    "user": {"id": "u005", "name": "Malar V."},
+    "platform": "reddit",
+    "extra": {"hazard_type": "Urban Flooding/Heavy Rainfall"}
+  },
+  {
+    "id": "cgr2049",
+    "skip": false,
+    "type": "geo-event",
+    "text": "Earthquake of Magnitude 5.4 reported in the Andaman Sea region, 90 km depth. Felt across the Andaman Islands. NCS confirms no Tsunami threat expected due to the deep focus of the seismic event. Stay alert for aftershocks.",
+    "created_at": "2025-11-09T12:06:28Z",
+    "location": {"lat": 12.49, "lon": 93.83, "name": "Andaman Sea"},
+    "media": ["https://th.bing.com/th/id/R.3f17df54cb70e80cdd1254f355a33bcf?rik=r2kf02WrXe57ug&riu=http%3a%2f%2fwww.india.com%2fwp-content%2fuploads%2f2018%2f02%2fandaman-quake.jpg&ehk=WsWFuz8f21I9JJfgb4HZ28oCJZt08xfRXCacQlPlWnI%3d&risl=&pid=ImgRaw&r=0"],
+    "user": {"id": "ncsreport", "name": "National Centre for Seismology"},
+    "platform": "coast_guard",
+    "extra": {"magnitude": 5.4, "hazard_type": "Earthquake/Seismic Activity", "tsunami_alert": "None"}
+  }
+]
