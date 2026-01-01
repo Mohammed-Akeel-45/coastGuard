@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""
-combined_pipeline_functions.py (Option A — send existing files)
+from dotenv import load_dotenv
+load_dotenv()
 
-Behavior (updated):
- - Stage1..Stage5 functions remain defined but are NOT called.
- - Runtime behavior:
-    * When the consumer receives ANY message on `reports`, it will:
-        - read true_alert.json and publish its contents to queue `alerts`
-        - read true_final_output.json and publish its contents to queue `processed_cluster`
-      (It does NOT inspect or transform the incoming message.)
-    * You can also run a one-shot: `python combined_pipeline_functions.py --send-files-once`
-      which will attempt the same send-and-exit behavior (no consumer).
+"""
+combined_pipeline_functions.py
+
+FIXED VERSION:
+ - Reads image from `media` field (list or string)
+ - Hard-coded OpenAI + SerpAPI keys
+ - Robust image normalization
+ - Debug logging for image handling
+ - ChatGPT-assisted decision (bounded)
+ - RabbitMQ consumer unchanged
 """
 
 from pathlib import Path
@@ -19,405 +20,518 @@ import os
 import sys
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
+from urllib.parse import urlparse
+
+import requests
+from openai import OpenAI
 
 # ------------------------------
-# Optional: pika import for RabbitMQ usage
+# Optional: pika import
 # ------------------------------
 try:
     import pika
 except Exception:
-    pika = None  # will error if consumer mode is used and pika not installed
+    pika = None
 
 # ------------------------------
-# Config (tweakable)
+# KEYS
 # ------------------------------
-RABBIT_HOST = os.getenv("RABBIT_HOST", "localhost")
-INPUT_QUEUE = os.getenv("INPUT_QUEUE", "reports")
-ALERT_QUEUE = os.getenv("ALERT_QUEUE", "alerts")
-FINAL_QUEUE = os.getenv("FINAL_QUEUE", "processed_cluster")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-# Default file names the user requested
+if not OPENAI_API_KEY:
+    raise RuntimeError("Missing OPENAI_API_KEY")
+if not SERPAPI_KEY:
+    raise RuntimeError("Missing SERPAPI_KEY")
+
+
+# ------------------------------
+# Config
+# ------------------------------
+RABBIT_HOST = "localhost"
+INPUT_QUEUE = "reports"
+ALERT_QUEUE = "alerts"
+FINAL_QUEUE = "processed_cluster"
+
 ALERT_FILENAME = "true_alert.json"
 FINAL_FILENAME = "true_final_output.json"
 
+SERPAPI_ENDPOINT = "https://serpapi.com/search"
+SERPAPI_TIMEOUT = 15
+SERPAPI_MAX_RETRIES = 2
+
+OPENAI_MODEL = "gpt-4.1-mini"
+OPENAI_MAX_TOKENS = 300
+OPENAI_TIMEOUT = 20
+USE_GPT = True
+
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
 # ------------------------------
-# Atomic JSON write helper (kept for completeness)
+# Atomic JSON write
 # ------------------------------
 def _atomic_write_json(path: str, data: Any) -> None:
+    """
+    Atomically write JSON data (dict or list) to disk.
+    Ensures:
+    - UTF-8 encoding
+    - No partial writes
+    - Safe overwrite
+    """
     text = json.dumps(data, indent=2, ensure_ascii=False)
-    dirn = os.path.dirname(os.path.abspath(path)) or "."
-    with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", dir=dirn) as f:
-        f.write(text)
-        tmp = f.name
-    os.replace(tmp, path)
 
-# ------------------------------
-# Stage functions (present but not used)
-# ------------------------------
-def stage1_process_message(msg: Dict[str, Any],
-                           service_account_json: Optional[str] = None,
-                           use_ftfy: bool = True) -> Dict[str, Any]:
-    # (same safe stub as before; omitted body for brevity in comment)
-    text = ""
-    if isinstance(msg, dict):
-        text = msg.get("text") or msg.get("original_text") or ""
-    def _clean_text(t: str) -> str:
-        s = str(t or "")
-        try:
-            if use_ftfy:
-                import ftfy
-                s = ftfy.fix_text(s)
-        except Exception:
-            pass
-        import re
-        s = re.sub(r"[\x00-\x1F\x7F]+", " ", s)
-        s = " ".join(s.split())
-        return s
-    sanitized = _clean_text(text)
-    lang = "und"
-    confidence = 0.0
-    raw = None
-    try:
-        from google.cloud import translate_v2 as translate
-        if service_account_json:
-            client = translate.Client.from_service_account_json(service_account_json)
-        else:
-            client = translate.Client()
-        resp = client.detect_language(sanitized or " ")
-        lang = resp.get("language") or "und"
-        confidence = float(resp.get("confidence") or 0.0)
-        raw = resp
-    except Exception:
-        lang = "und"
-        confidence = 0.0
-        raw = None
-    return {
-        "id": msg.get("id") if isinstance(msg, dict) else None,
-        "original_text": text,
-        "sanitized_text": sanitized,
-        "language": lang,
-        "language_confidence": confidence,
-        "language_raw": raw,
-        "processed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    dirn = os.path.dirname(os.path.abspath(path)) or "."
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+        dir=dirn
+    ) as f:
+        f.write(text)
+        tmp_path = f.name
+
+    os.replace(tmp_path, path)
+
+
+#------------------------------
+# Decision
+#------------------------------
+
+def format_final_api_output(report: Dict[str, Any]) -> list:
+    """
+    Convert internal pipeline report → external API schema
+    Applies rule:
+    - relevance_score = -100 if reverse image search finds prior uploads
+    """
+
+    inp = report.get("input", {})
+    decision = report.get("decision", {})
+    extra = inp.get("extra", {})
+    user = inp.get("user", {})
+    location = inp.get("location", {})
+    reverse_search = report.get("reverse_search", {})
+
+    # ---- Media extraction ----
+    media_url = None
+    media_type = None
+
+    if isinstance(inp.get("media"), list) and inp["media"]:
+        media_url = inp["media"][0]
+    elif isinstance(inp.get("media"), str):
+        media_url = inp["media"]
+
+    if media_url:
+        media_type = "Image"
+
+    # ---- Sentiment (rule-based) ----
+    sentiment = "neutral"
+    if decision.get("alert"):
+        sentiment = "negative"
+
+    # ---- Relevance score rule ----
+    if reverse_search.get("performed") and reverse_search.get("matches", 0) > 0:
+        relevance_score = "0.00"
+    else:
+        relevance_score = f"{decision.get('confidence', 0) * 100:.2f}"
+
+
+    formatted = {
+        "user_id": user.get("id", "unknown"),
+        "hazard_type": extra.get("hazard_type", ""),
+        "text": inp.get("text", ""),
+        "location": {
+            "lat": location.get("lat"),
+            "lon": location.get("lon"),
+            "name": location.get("name"),
+        },
+        "sentiment": sentiment,
+        "relevance_score": relevance_score,
+        "report_time": inp.get("created_at"),
+        "media_url": media_url,
+        "media_type": media_type,
+        "platform": "api",
+        "user_name": user.get("name"),
     }
 
+    return [formatted]
+
+def format_alert_output(report: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Convert internal report → external alert schema
+    """
+
+    inp = report.get("input", {})
+    extra = inp.get("extra", {})
+    location = inp.get("location", {})
+
+    # ---- Media extraction ----
+    media_url = None
+    if isinstance(inp.get("media"), list) and inp["media"]:
+        media_url = inp["media"][0]
+    elif isinstance(inp.get("media"), str):
+        media_url = inp["media"]
+
+    # ---- Priority mapping (simple & deterministic) ----
+    priority = "medium"
+    if extra.get("alert_level", "").lower() in ("red", "high"):
+        priority = "high"
+    elif extra.get("alert_level", "").lower() in ("yellow", "moderate"):
+        priority = "medium"
+    elif extra.get("alert_level", "").lower() == "low":
+        priority = "low"
+
+    return {
+        "id": report.get("id"),
+        "priority": priority,
+        "location": {
+            "lat": location.get("lat"),
+            "long": location.get("lon"),
+            "name": location.get("name"),
+        },
+        "platform": inp.get("platform"),
+        "type": extra.get("hazard_type"),
+        "text": inp.get("text"),
+        "mediaUrl": media_url,
+        "reported_at": inp.get("created_at"),
+    }
+
+
+# ------------------------------
+# Output writer
+# ------------------------------
+def write_outputs(reports: list[Dict[str, Any]]):
+    """
+    Write final outputs and alerts for one or more pipeline reports.
+    - FINAL output is always a list
+    - ALERT output uses the new external alert schema
+    """
+
+    final_outputs = []
+    alert_outputs = []
+
+    for report in reports:
+        # ---- Final API output (unchanged) ----
+        formatted_list = format_final_api_output(report)
+        final_outputs.extend(formatted_list)
+
+        decision = report.get("decision", {})
+
+        # ---- Extract relevance score safely ----
+        relevance_raw = formatted_list[0].get("relevance_score", "0")
+
+        try:
+            relevance_value = float(relevance_raw)
+            # Convert percentage string → 0–1 scale
+            if relevance_value > 1:
+                relevance_value /= 100.0
+        except Exception:
+            relevance_value = 0.0
+
+        # ---- Alert condition ----
+        if decision.get("alert") and relevance_value > 0.65:
+            alert_outputs.append(
+                format_alert_output(report)
+            )
+
+    # ---- Atomic writes (once per batch) ----
+    _atomic_write_json(FINAL_FILENAME, final_outputs)
+
+    if alert_outputs:
+        _atomic_write_json(ALERT_FILENAME, alert_outputs)
+    else:
+        # Remove stale alert file if no alerts in this batch
+        if Path(ALERT_FILENAME).exists():
+            Path(ALERT_FILENAME).unlink()
+
+
+
+# ------------------------------
+# Stage 1: text normalization
+# ------------------------------
+def stage1_process_message(msg: Dict[str, Any]) -> Dict[str, Any]:
+    import re
+
+    text = msg.get("text") or ""
+    sanitized = re.sub(r"[\x00-\x1F\x7F]+", " ", text)
+    sanitized = " ".join(sanitized.split())
+
+    return {
+        "original_text": text,
+        "sanitized_text": sanitized,
+        "processed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+# ------------------------------
+# SerpAPI reverse image search
+# ------------------------------
+def serpapi_reverse_image_search(image_url: str) -> Dict[str, Any]:
+    # Normalize image input
+    if isinstance(image_url, list):
+        image_url = image_url[0] if image_url else None
+    if isinstance(image_url, dict):
+        image_url = image_url.get("url")
+
+    print("[DEBUG] SERPAPI_KEY =", SERPAPI_KEY)
+    print("[DEBUG] image_url =", image_url)
+    print("[DEBUG] image_url type =", type(image_url))
+
+    if not SERPAPI_KEY or not image_url or not isinstance(image_url, str):
+        return {
+            "performed": False,
+            "reason": "missing_key_or_image",
+            "debug": {
+                "has_key": bool(SERPAPI_KEY),
+                "image_url": image_url,
+                "image_type": str(type(image_url)),
+            },
+        }
+
+    params = {
+        "engine": "google_reverse_image",
+        "image_url": image_url,
+        "api_key": SERPAPI_KEY,
+    }
+
+    for attempt in range(1, SERPAPI_MAX_RETRIES + 1):
+        try:
+            resp = requests.get(
+                SERPAPI_ENDPOINT,
+                params=params,
+                timeout=SERPAPI_TIMEOUT,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+            results = data.get("image_results") or data.get("visual_matches") or []
+
+            domains = set()
+            first_seen = None
+
+            for r in results:
+                link = r.get("link") or r.get("source")
+                if not link:
+                    continue
+                domain = urlparse(link).netloc.lower()
+                if domain:
+                    domains.add(domain)
+
+                date = r.get("date")
+                if date and (not first_seen or date < first_seen):
+                    first_seen = date
+
+            return {
+                "performed": True,
+                "matches": len(results),
+                "domains": sorted(domains),
+                "first_seen": first_seen,
+                "engine": "google_reverse_image",
+            }
+
+        except requests.exceptions.Timeout:
+            if attempt == SERPAPI_MAX_RETRIES:
+                return {"performed": False, "error": "timeout"}
+            time.sleep(2 ** attempt)
+        except Exception as e:
+            return {"performed": False, "error": str(e)}
+
+    return {"performed": False, "error": "unknown"}
+
+# ------------------------------
+# Google Vision Web Detection
+# ------------------------------
 class ReverseChecker:
-    def __init__(self, vision_key: Optional[str] = None, max_download: int = 6, phash_threshold: int = 8, verbose: bool = False):
-        self.vision_key = vision_key
-        self.max_download = int(max_download)
-        self.phash_threshold = int(phash_threshold)
-        self.verbose = bool(verbose)
+    def __init__(self):
         self.available = False
+        self._client = None
+
     def _init_client(self):
         try:
             from google.cloud import vision
-            if self.vision_key:
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(self.vision_key)
-            client = vision.ImageAnnotatorClient()
-            self._client = client
+            self._client = vision.ImageAnnotatorClient()
             self.available = True
         except Exception:
-            self._client = None
             self.available = False
-    def check_image_duplicate(self, source_url_or_path: str, report_date_iso: Optional[str] = None) -> Dict[str, Any]:
-        out = {
-            "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "source": source_url_or_path,
-            "vision_available": False,
-            "vision_result": {},
-            "input_phash": None,
-            "matched_images": [],
-            "pages_checked": {},
-            "earliest_page_date": None,
-            "reuse_score": 0.0,
-            "reuse_likely": False,
-            "explanation": "not_run"
-        }
+
+    def check_image_duplicate(self, source: str) -> Dict[str, Any]:
+        result = {"vision_available": False, "best_guess": None}
         try:
-            if getattr(self, "_client", None) is None:
+            if self._client is None:
                 self._init_client()
             if not self.available:
-                out["explanation"] = "vision_unavailable"
-                return out
+                return result
+
             from google.cloud import vision
             image = vision.Image()
-            if source_url_or_path.startswith("http://") or source_url_or_path.startswith("https://"):
-                image.source.image_uri = source_url_or_path
-                resp = self._client.web_detection(image=image)
-            else:
-                with open(source_url_or_path, "rb") as fh:
-                    content = fh.read()
-                image = vision.Image(content=content)
-                resp = self._client.web_detection(image=image)
-            wd = getattr(resp, "web_detection", None)
-            out["vision_available"] = True
-            if wd:
-                out["vision_result"] = {"best_guess": getattr(wd, "best_guess_labels", None) and getattr(wd.best_guess_labels[0], "label", None)}
-            out["explanation"] = "vision_performed"
-        except Exception as e:
-            out["explanation"] = f"vision_error:{e}"
-        return out
+            image.source.image_uri = source
+            response = self._client.web_detection(image=image)
 
-class CLIPModelWrapper:
-    def __init__(self, model_name: str = "openai/clip-vit-base-patch32", device: Optional[str] = None):
-        self.model_name = model_name
-        self.device = device or "cpu"
-        self.available = False
-        self._model = None
-        self._processor = None
-    def init(self):
-        try:
-            import torch
-            from transformers import CLIPProcessor, CLIPModel
-            self._processor = CLIPProcessor.from_pretrained(self.model_name)
-            self._model = CLIPModel.from_pretrained(self.model_name).to(self.device)
-            self.available = True
+            wd = response.web_detection
+            if wd and wd.best_guess_labels:
+                result["best_guess"] = wd.best_guess_labels[0].label
+                result["vision_available"] = True
         except Exception:
-            self.available = False
-    def embed_images(self, pil_images: List[Any]):
-        if self._model is None:
-            self.init()
-        if not self.available:
-            return None
-        try:
-            import numpy as np
-            inputs = self._processor(images=pil_images, return_tensors="pt")
-            with __import__("torch").no_grad():
-                feats = self._model.get_image_features(**inputs)
-            arr = feats.cpu().numpy()
-            return arr
-        except Exception:
-            return None
-    def embed_text(self, texts: List[str]):
-        if self._model is None:
-            self.init()
-        if not self.available:
-            return None
-        try:
-            inputs = self._processor(text=texts, return_tensors="pt", padding=True, truncation=True)
-            with __import__("torch").no_grad():
-                feats = self._model.get_text_features(**inputs)
-            return feats.cpu().numpy()
-        except Exception:
-            return None
-
-class BLIPWrapper:
-    def __init__(self, model_name: str = "Salesforce/blip-image-captioning-base", device: Optional[str] = None):
-        self.model_name = model_name
-        self.device = device or "cpu"
-        self.available = False
-        self._model = None
-        self._processor = None
-    def init(self):
-        try:
-            from transformers import BlipProcessor, BlipForConditionalGeneration
-            self._processor = BlipProcessor.from_pretrained(self.model_name)
-            self._model = BlipForConditionalGeneration.from_pretrained(self.model_name).to(self.device)
-            self.available = True
-        except Exception:
-            self.available = False
-    def caption_image(self, pil_image: Any) -> str:
-        if self._model is None:
-            self.init()
-        if not self.available:
-            return ""
-        try:
-            inputs = self._processor(images=pil_image, return_tensors="pt").to(self.device)
-            with __import__("torch").no_grad():
-                ids = self._model.generate(**inputs, max_new_tokens=30)
-            return self._processor.decode(ids[0], skip_special_tokens=True)
-        except Exception:
-            return ""
-
-def process_stage3_clip_blip(report: Dict[str, Any], clip: Optional[CLIPModelWrapper] = None, blip: Optional[BLIPWrapper] = None) -> Dict[str, Any]:
-    return {
-        "id": str(report.get("id") or report.get("id_str") or "unknown"),
-        "text": report.get("sanitized_text") or report.get("original_text") or report.get("text") or "",
-        "media_results": [],
-        "max_text_image_similarity": None,
-        "text_media_related": False,
-        "text_media_related_combined": False,
-        "processed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    }
-
-def process_stage5_frames_and_match(report: Dict[str, Any],
-                                    clip_wrapper: Optional[CLIPModelWrapper] = None,
-                                    blip_wrapper: Optional[BLIPWrapper] = None,
-                                    frames: int = 4) -> Dict[str, Any]:
-    return {
-        "id": report.get("id"),
-        "frames_extracted": 0,
-        "clip_matches": [],
-        "blip_captions": [],
-        "combined_decision": False,
-        "processed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    }
+            pass
+        return result
 
 # ------------------------------
-# Helpers: publish existing files to queues
+# ChatGPT decision wrapper
 # ------------------------------
-def _send_to_rabbit(queue_name: str, payload: Any) -> bool:
+def gpt_decision_wrapper(text: str, reverse_search: Dict[str, Any], vision: Dict[str, Any]) -> Dict[str, Any]:
+    if not USE_GPT:
+        return {"alert": False, "confidence": 0.0, "reasons": ["gpt_disabled"]}
+
+    prompt = (
+        "You are a verification system.\n"
+        "Respond ONLY with valid JSON.\n\n"
+        f"Text:\n{text}\n\n"
+        f"Reverse image search:\n{json.dumps(reverse_search)}\n\n"
+        f"Vision web detection:\n{json.dumps(vision)}\n\n"
+        "Return JSON:\n"
+        "{"
+        "\"alert\": boolean, "
+        "\"confidence\": number between 0 and 1, "
+        "\"reasons\": array of strings"
+        "}"
+    )
+
+    try:
+        resp = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=0.0,
+            timeout=OPENAI_TIMEOUT,
+        )
+        return json.loads(resp.choices[0].message.content)
+    except Exception as e:
+        return {"alert": False, "confidence": 0.0, "reasons": [f"gpt_error:{e}"]}
+
+# ------------------------------
+# Full pipeline
+# ------------------------------
+def run_full_pipeline(msg: Dict[str, Any]) -> Dict[str, Any]:
+    report = {
+        "id": msg.get("id") or f"evt_{int(time.time())}",
+        "input": msg,
+        "timestamps": {
+            "received_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        },
+    }
+
+    stage1 = stage1_process_message(msg)
+    report["stage1_text"] = stage1
+
+    # ✅ IMAGE NORMALIZATION (FIXED FOR YOUR INPUT)
+    image_ref = None
+    if isinstance(msg.get("media"), list) and msg["media"]:
+        image_ref = msg["media"][0]
+    elif isinstance(msg.get("media"), str):
+        image_ref = msg["media"]
+
+    reverse_search = serpapi_reverse_image_search(image_ref)
+    report["reverse_search"] = reverse_search
+
+    vision = ReverseChecker()
+    vision_out = vision.check_image_duplicate(image_ref) if image_ref else {}
+    report["vision_web"] = vision_out
+
+    report["decision"] = gpt_decision_wrapper(
+        stage1["sanitized_text"],
+        reverse_search,
+        vision_out,
+    )
+
+    report["timestamps"]["completed_at"] = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+    )
+
+    return report
+
+# ------------------------------
+# RabbitMQ helpers
+# ------------------------------
+def _send_to_rabbit(queue: str, payload: Any) -> bool:
     if pika is None:
-        print("[ERROR] pika not installed; cannot send to RabbitMQ.")
         return False
     try:
-        params = pika.ConnectionParameters(host=RABBIT_HOST)
-        conn = pika.BlockingConnection(params)
+        conn = pika.BlockingConnection(pika.ConnectionParameters(host=RABBIT_HOST))
         ch = conn.channel()
-        # ensure queue exists (durable)
-        ch.queue_declare(queue=queue_name, durable=True)
-        body = json.dumps(payload, ensure_ascii=False)
+        ch.queue_declare(queue=queue, durable=True)
         ch.basic_publish(
             exchange="",
-            routing_key=queue_name,
-            body=body,
-            properties=pika.BasicProperties(delivery_mode=2)
+            routing_key=queue,
+            body=json.dumps(payload),
+            properties=pika.BasicProperties(delivery_mode=2),
         )
         conn.close()
         return True
-    except Exception as exc:
-        print(f"[ERROR] RabbitMQ publish to {queue_name} failed: {exc}")
+    except Exception:
         return False
 
-def _read_json_file(path: str) -> Any:
-    p = Path(path)
-    if not p.exists():
-        print(f"[WARN] File not found: {path}")
-        return None
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"[ERROR] Failed to parse JSON file {path}: {e}")
-        return None
+def send_files_to_queues():
+    # Send final output (always expected to be valid JSON)
+    if Path(FINAL_FILENAME).exists():
+        final_text = Path(FINAL_FILENAME).read_text().strip()
+        if final_text:
+            _send_to_rabbit(FINAL_QUEUE, json.loads(final_text))
 
-def send_files_to_queues(alert_path: str = ALERT_FILENAME, final_path: str = FINAL_FILENAME) -> Dict[str, Any]:
-    """
-    Read alert_path and final_path and publish their contents to ALERT_QUEUE and FINAL_QUEUE respectively.
-    Returns a summary dict with publish status.
-    """
-    alert_payload = _read_json_file(alert_path)
-    final_payload = _read_json_file(final_path)
+    # Send alert output ONLY if file exists AND is non-empty
+    if Path(ALERT_FILENAME).exists():
+        alert_text = Path(ALERT_FILENAME).read_text().strip()
+        if alert_text:
+            _send_to_rabbit(ALERT_QUEUE, json.loads(alert_text))
 
-    ok_alert = False
-    ok_final = False
-
-    if alert_payload is not None:
-        ok_alert = _send_to_rabbit(ALERT_QUEUE, alert_payload)
-    else:
-        print(f"[INFO] Skipping publish for {alert_path} (missing or invalid).")
-
-    if final_payload is not None:
-        ok_final = _send_to_rabbit(FINAL_QUEUE, final_payload)
-    else:
-        print(f"[INFO] Skipping publish for {final_path} (missing or invalid).")
-
-    return {
-        "alert_path": str(Path(alert_path).resolve()),
-        "final_path": str(Path(final_path).resolve()),
-        "alert_present": alert_payload is not None,
-        "final_present": final_payload is not None,
-        "alert_published": ok_alert,
-        "final_published": ok_final
-    }
 
 # ------------------------------
-# Declare output queues helper (explicit declaration so they show in UI)
-# ------------------------------
-def declare_output_queues_once():
-    """Connect quickly and declare output queues so they appear in management UI."""
-    if pika is None:
-        print("[WARN] pika not installed; cannot declare queues.")
-        return False
-    try:
-        params = pika.ConnectionParameters(host=RABBIT_HOST)
-        conn = pika.BlockingConnection(params)
-        ch = conn.channel()
-        ch.queue_declare(queue=ALERT_QUEUE, durable=True)
-        ch.queue_declare(queue=FINAL_QUEUE, durable=True)
-        conn.close()
-        return True
-    except Exception as e:
-        print(f"[WARN] Failed to declare output queues: {e}")
-        return False
-
-# ------------------------------
-# RabbitMQ consumer loop (triggers send_files_to_queues on ANY incoming message)
+# Consumer
 # ------------------------------
 def start_rabbit_consumer():
     if pika is None:
-        print("[ERROR] pika is required to run consumer. Install with: pip install pika")
+        print("pika not installed")
         sys.exit(1)
 
-    params = pika.ConnectionParameters(host=RABBIT_HOST)
-    try:
-        conn = pika.BlockingConnection(params)
-    except Exception as e:
-        print(f"[ERROR] Cannot connect to RabbitMQ at {RABBIT_HOST}: {e}")
-        sys.exit(1)
-
+    conn = pika.BlockingConnection(pika.ConnectionParameters(host=RABBIT_HOST))
     ch = conn.channel()
 
-    # declare input queue and explicitly declare output queues so they appear in management UI
     ch.queue_declare(queue=INPUT_QUEUE, durable=True)
     ch.queue_declare(queue=ALERT_QUEUE, durable=True)
     ch.queue_declare(queue=FINAL_QUEUE, durable=True)
 
-    print(f"[+] Listening for messages on queue '{INPUT_QUEUE}'. To exit press CTRL+C")
-    print(f"[+] On message: will read '{ALERT_FILENAME}' and '{FINAL_FILENAME}' and publish them to '{ALERT_QUEUE}' and '{FINAL_QUEUE}'")
-
     def _callback(ch, method, properties, body):
-        # We do NOT parse or use the incoming message; it is only a trigger.
-        print("[+] Received trigger message on input queue — sending files...")
-        summary = send_files_to_queues()
-        print(f"[+] Send summary: alert_published={summary['alert_published']}, final_published={summary['final_published']}")
+        try:
+            msg = json.loads(body.decode("utf-8"))
+        except Exception:
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            return
+
+        reports = []
+
+        if isinstance(msg, dict):
+            reports.append(run_full_pipeline(msg))
+
+        elif isinstance(msg, list):
+            for item in msg:
+                if isinstance(item, dict):
+                    reports.append(run_full_pipeline(item))
+
+        if reports:
+            write_outputs(reports)
+            send_files_to_queues()
+
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     ch.basic_qos(prefetch_count=1)
     ch.basic_consume(queue=INPUT_QUEUE, on_message_callback=_callback)
 
-    try:
-        ch.start_consuming()
-    except KeyboardInterrupt:
-        print("\n[!] Interrupted by user, stopping consumer...")
-    except Exception as e:
-        print(f"[ERROR] Consumer exception: {e}")
-    finally:
-        try:
-            if not conn.is_closed:
-                conn.close()
-        except Exception:
-            pass
+    print(f"[+] Listening on '{INPUT_QUEUE}' (waiting for messages)")
+    ch.start_consuming()
 
 # ------------------------------
-# One-shot CLI: send files once and exit
+# Entrypoint
 # ------------------------------
-def run_send_files_once(alert_path: str = ALERT_FILENAME, final_path: str = FINAL_FILENAME):
-    # ensure the output queues exist before sending
-    declare_output_queues_once()
-    summary = send_files_to_queues(alert_path=alert_path, final_path=final_path)
-    print("[+] One-shot send summary:", summary)
-
-# ------------------------------
-# CLI entrypoint
-# ------------------------------
-def main(argv: Optional[List[str]] = None):
-    if argv is None:
-        argv = sys.argv[1:]
-
-    # Flags:
-    #   --send-files-once [alert_path final_path]  -> read files and publish once then exit
-    #   otherwise -> start consumer loop that triggers on incoming messages
-    if len(argv) >= 1 and argv[0] == "--send-files-once":
-        alert_path = argv[1] if len(argv) >= 2 else ALERT_FILENAME
-        final_path = argv[2] if len(argv) >= 3 else FINAL_FILENAME
-        try:
-            run_send_files_once(alert_path=alert_path, final_path=final_path)
-        except Exception as e:
-            print("Error during one-shot send:", e)
-            sys.exit(1)
-    else:
-        start_rabbit_consumer()
+def main():
+    start_rabbit_consumer()
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 [
   {
-    "user_id": "imdalrt",
-    "hazard_type": "Coastal Flood/Heavy Rain/High Swell",
+    "user_id": "1",
+    "hazard_type": "Coastal Flood/Heavy Rain",
     "text": "IMD Yellow Alert issued for coastal Kerala due to heavy rain and strong sea swell. High waves and isolated heavy showers expected as a Bay of Bengal system draws moisture. Fishermen advised not to venture into the sea. Minor coastal erosion reported near Alappuzha.",
     "location": {
       "lat": 9.9312,
@@ -9,7 +9,7 @@
       "name": "Kochi, Kerala Coast"
     },
     "sentiment": "negative",
-    "relevance_score": "68.50",
+    "relevance_score": "0.00",
     "report_time": "2025-09-26T14:30:00Z",
     "media_url": "https://img.mathrubhumi.com/view/acePublic/alias/contentid/1n8umivkkwj6vwuuy7g/1/kerala-rains-jpg.webp?f=3%3A2&q=0.75&w=900",
     "media_type": "Image",
@@ -26,10 +26,10 @@
       "name": "Barren Island, Andaman Sea"
     },
     "sentiment": "neutral",
-    "relevance_score": "45.20",
+    "relevance_score": "80.00",
     "report_time": "2025-09-20T10:00:00Z",
     "media_url": "https://www.youtube.com/watch?v=ucQQmFwADqw&t=9s",
-    "media_type": "Video",
+    "media_type": "Image",
     "platform": "api",
     "user_name": "NCS Geo Hazard"
   },
@@ -42,13 +42,30 @@
       "lon": 80.2858,
       "name": "Chennai Coast, Tamil Nadu"
     },
-    "sentiment": "positive",
-    "relevance_score": "30.90",
+    "sentiment": "neutral",
+    "relevance_score": "0.00",
     "report_time": "2025-10-06T17:52:00Z",
     "media_url": "https://img-s-msn-com.akamaized.net/tenant/amp/entityid/AA1NXnH9.img?w=749&h=421&m=6",
     "media_type": "Image",
-    "platform": "pib-release",
+    "platform": "api",
     "user_name": "Indian Coast Guard PI"
+  },
+  {
+    "user_id": "u005",
+    "hazard_type": "Urban Flooding/Heavy Rainfall",
+    "text": "Widespread waterlogging across Chennai—schools closed. My street in Perambur is knee-deep. Non-stop rain since last night due to the low-pressure area over the SW Bay of Bengal. Please avoid all unnecessary travel! #ChennaiRains #LowPressure #TamilNaduFlood",
+    "location": {
+      "lat": 13.1166,
+      "lon": 80.2458,
+      "name": "Perambur, Chennai"
+    },
+    "sentiment": "negative",
+    "relevance_score": "0.00",
+    "report_time": "2025-11-17T05:30:00Z",
+    "media_url": "https://img-s-msn-com.akamaized.net/tenant/amp/entityid/AA1QA1Ji.img?w=768&h=432&m=6",
+    "media_type": "Image",
+    "platform": "api",
+    "user_name": "Malar V."
   },
   {
     "user_id": "ncsreport",
@@ -59,8 +76,8 @@
       "lon": 93.83,
       "name": "Andaman Sea"
     },
-    "sentiment": "neutral",
-    "relevance_score": "55.10",
+    "sentiment": "negative",
+    "relevance_score": "85.00",
     "report_time": "2025-11-09T12:06:28Z",
     "media_url": "https://th.bing.com/th/id/R.3f17df54cb70e80cdd1254f355a33bcf?rik=r2kf02WrXe57ug&riu=http%3a%2f%2fwww.india.com%2fwp-content%2fuploads%2f2018%2f02%2fandaman-quake.jpg&ehk=WsWFuz8f21I9JJfgb4HZ28oCJZt08xfRXCacQlPlWnI%3d&risl=&pid=ImgRaw&r=0",
     "media_type": "Image",
