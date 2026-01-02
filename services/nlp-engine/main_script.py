@@ -49,7 +49,7 @@ if not SERPAPI_KEY:
 # ------------------------------
 # Config
 # ------------------------------
-RABBIT_HOST = "localhost"
+RABBIT_HOST = os.getenv("RABBIT_HOST")
 INPUT_QUEUE = "reports"
 ALERT_QUEUE = "alerts"
 FINAL_QUEUE = "processed_cluster"

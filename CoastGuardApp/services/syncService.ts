@@ -14,7 +14,7 @@ export const syncReports = async () => {
             const formData = new FormData();
 
             formData.append('text', report.text);
-            formData.append('type_id', report.type_id.toString()); // API expects integer, but FormData is string-based
+            formData.append('type_id', report.type); // API expects integer, but FormData is string-based
             formData.append('latitude', report.latitude.toString());
             formData.append('longitude', report.longitude.toString());
             if (report.location_name) {
