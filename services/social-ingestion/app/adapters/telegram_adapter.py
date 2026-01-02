@@ -14,7 +14,7 @@ class TelegramChannelAdapter(BaseAdapter):
         self.channels = channels
         self.limit = limit
 
-    def search_posts(self, keywords, geo_filter=None, since_id=None, limit=100):
+    def search_posts(self, keywords, geo_filter=None, since_id=None, limit=10):
         posts = []
         max_results = min(limit, self.limit)
 
